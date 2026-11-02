@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chronos - Das horizontale Zeitstrahl-Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        #timeline-scroll { scrollbar-color: #6366f1 #0f172a; scrollbar-width: thin; }
+        #timeline-scroll::-webkit-scrollbar { height: 10px; }
+        #timeline-scroll::-webkit-scrollbar-track { background: #0f172a; border-radius: 999px; }
+        #timeline-scroll::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 999px; }
+        .timeline-wide { width: calc(100vw - 2rem); }
+        #timeline-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #timeline-container::before {
+            content: "";
+            position: absolute;
+            left: 28px;
+            right: 28px;
+            top: 50%;
+            height: 4px;
+            transform: translateY(-50%);
+            background: linear-gradient(90deg, rgba(99,102,241,0.7), rgba(168,85,247,0.7), rgba(236,72,153,0.7));
+            border-radius: 999px;
+            z-index: 0;
+        }
+        #timeline-container > :not(.absolute) {
+            position: relative;
+            z-index: 1;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between selection:bg-indigo-500 selection:text-white">
+
+    <!-- Header -->
+    <header class="w-full max-w-6xl mx-auto p-6 flex justify-between items-center border-b border-slate-800/60">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-500/20">C</div>
+            <div>
+                <h1 class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">CHRONOS</h1>
+                <p class="text-xs text-slate-400">Das horizontale Zeitstrahl-Quiz</p>
+            </div>
+        </div>
+        <div id="game-stats" class="hidden flex items-center space-x-6 text-sm">
+            <div class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center space-x-2">
+                <span class="text-slate-400">Punkte:</span>
+                <span id="score-display" class="font-bold text-indigo-400 text-base">0</span>
+            </div>
+            <div class="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl flex items-center space-x-2">
+                <span class="text-slate-400">Leben:</span>
+                <span id="lives-display" class="font-bold text-rose-400 text-base">❤️❤️❤️</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-6 flex flex-col items-center justify-center">
+
+        <!-- Mode Selection View -->
+        <div id="view-menu" class="w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 p-8 rounded-3xl shadow-2xl text-center space-y-6">
+            <div class="space-y-2">
+                <h2 class="text-2xl font-bold">Wähle deinen Modus</h2>
+                <p class="text-sm text-slate-400">Ordne historische Ereignisse chronologisch auf dem horizontalen Zeitstrahl ein.</p>
+            </div>
+            <div class="space-y-3">
+                <button onclick="startGame('single')" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-2xl transition shadow-lg shadow-indigo-600/25 flex items-center justify-center space-x-2">
+                    <span>Einzelspieler</span>
+                </button>
+                <button onclick="showMultiplayerSetup()" class="w-full py-4 px-6 bg-slate-800 hover:bg-slate-700 font-bold rounded-2xl transition border border-slate-700 flex items-center justify-center space-x-2">
+                    <span>Mehrspieler (Lokal)</span>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500">Mehr Fragen, mehr Schätzfragen und mehr Personen-Geburtstage kommen hier rein.</p>
+        </div>
+
+        <!-- Multiplayer Setup View -->
+        <div id="view-mp-setup" class="hidden w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 p-8 rounded-3xl shadow-2xl space-y-6">
+            <h2 class="text-2xl font-bold text-center">Multiplayer Modus</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Spieler-Namen (Komma-getrennt)</label>
+                    <input type="text" id="mp-players" value="Anna, Ben" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 focus:outline-none focus:border-indigo-500">
+                </div>
+                <p class="text-xs text-slate-500">Aktuell nur lokal im selben Browser. Online-Multiplayer kommt später mit Backend.</p>
+                <button onclick="startMultiplayerGame()" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-2xl transition shadow-lg shadow-indigo-600/25">
+                    Spiel starten
+                </button>
+                <button onclick="showMenu()" class="w-full py-2 text-sm text-slate-400 hover:text-white transition">Zurück</button>
+            </div>
+        </div>
+
+        <!-- Game View -->
+        <div id="view-game" class="hidden w-full flex flex-col items-center space-y-10">
+
+            <!-- Turn Indicator for Multiplayer -->
+            <div id="turn-indicator" class="hidden px-6 py-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full text-indigo-300 font-semibold text-sm">
+                Am Zug: <span id="current-player-name" class="text-white"></span>
+            </div>
+
+            <!-- Current Mystery Event Box -->
+            <div class="w-full max-w-lg bg-slate-900 border border-slate-800 p-6 rounded-3xl shadow-2xl text-center space-y-2 relative overflow-hidden">
+                <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500"></div>
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-400">Wo gehört dieses Ereignis hin?</span>
+                <h3 id="mystery-title" class="text-2xl font-extrabold text-white">Ereignis-Name</h3>
+                <p id="mystery-desc" class="text-sm text-slate-400">Kurze Beschreibung des historischen Ereignisses...</p>
+            </div>
+
+            <!-- Timeline + Sort Areas -->
+                    <div class="timeline-wide py-8">
+                <div class="relative w-full">
+                    <div id="timeline-scroll" class="overflow-x-auto">
+                        <div id="timeline-container" class="relative flex items-center justify-center min-h-[160px] bg-slate-900/40 rounded-3xl border border-slate-800/80 backdrop-blur p-4">
+                        <!-- Central reference event inserted via JS -->
+                      </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <div id="event-tray" class="w-full max-w-5xl">
+                <div class="bg-slate-900 border border-slate-800 rounded-3xl p-5">
+                    <div class="flex items-center justify-between gap-3 mb-4">
+                        <h4 class="text-xs font-bold uppercase tracking-[0.2em] text-slate-400">Verbleibende Ereignisse</h4>
+                        <span id="turn-status" class="text-xs font-semibold text-indigo-300">Karte wählen und die passende Lücke anklicken</span>
+                    </div>
+                    <div id="event-box" class="flex flex-wrap gap-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over View -->
+        <div id="view-gameover" class="hidden w-full max-w-md bg-slate-900/80 backdrop-blur border border-slate-800 p-8 rounded-3xl shadow-2xl text-center space-y-6">
+            <h2 class="text-3xl font-extrabold text-rose-400">Spiel vorbei!</h2>
+            <div class="space-y-2">
+                <p class="text-slate-400">Dein Punktestand:</p>
+                <p id="final-score" class="text-5xl font-black text-white">0</p>
+            </div>
+            <button onclick="showMenu()" class="w-full py-4 px-6 bg-indigo-600 hover:bg-indigo-500 font-bold rounded-2xl transition shadow-lg shadow-indigo-600/25">
+                Zurück zum Menü
+            </button>
+        </div>
+
+    </main>
+
+    <footer class="w-full max-w-6xl mx-auto p-6 text-center text-xs text-slate-600 border-t border-slate-800/60">
+        Chronos Zeitstrahl-Quiz • Erstellt für dich im Chat
+    </footer>
+
+    <!-- Game Logic Script -->
+    <script>
+        const database = [
+            { title: "Entdeckung Amerikas", year: 1492, desc: "Christoph Kolumbus erreicht die Karibik im Auftrag der spanischen Krone." },
+            { title: "Bau der Pyramiden von Gizeh", year: -2560, desc: "Die Großen Pyramiden werden für Pharao Cheops errichtet." },
+            { title: "Gründung Roms", year: -753, desc: "Rom entsteht nach einer Legende auf dem Tiberhügel." },
+            { title: "Untergang des Römischen Reichs", year: 476, desc: "Das Weströmische Reich endet mit dem Sturz von Romulus Augustulus." },
+            { title: "Erfindung des Buchdrucks", year: 1440, desc: "Johannes Gutenberg revolutioniert die Massenproduktion von Büchern." },
+            { title: "Geburt von Leonardo da Vinci", year: 1452, desc: "Der Maler, Erfinder und Universalgelehrte wird geboren." },
+            { title: "Geburt von Wolfgang Mozart", year: 1756, desc: "Das Wunderkind der Musik kommt auf die Welt." },
+            { title: "Beginn der Französischen Revolution", year: 1789, desc: "Der Sturm auf die Bastille markiert den Auftakt zur Revolution." },
+            { title: "Geburt von Charles Darwin", year: 1809, desc: "Der Naturforscher und Begründer der Evolutionstheorie wird geboren." },
+            { title: "Erste Mondlandung", year: 1969, desc: "Apollo 11 bringt Neil Armstrong und Buzz Aldrin auf den Mond." },
+            { title: "Einführung des iPhones", year: 2007, desc: "Apple stellt das erste iPhone vor und verändert die Mobilfunkwelt." },
+            { title: "Geburt von Marie Curie", year: 1867, desc: "Die Physikerin und Nobelpreisträgerin wird geboren." },
+            { title: "Geburt von Albert Einstein", year: 1879, desc: "Der Physiker mit den größten wissenschaftlichen Ideen wird geboren." },
+            { title: "Geburt von Greta Thunberg", year: 2003, desc: "Die Klimaaktivistin wird geboren." },
+            { title: "Geburt von Emma Watson", year: 1990, desc: "Die Schauspielerin und Aktivistin wird geboren." }
+        ];
+
+        let gameState = {
+            mode: 'single',
+            players: [],
+            currentPlayerIndex: 0,
+            score: 0,
+            lives: 3,
+            anchorEvent: null,
+            remainingEvents: [],
+            placedEvents: [],
+            selectedEvent: null
+        };
+
+        function showMenu() {
+            hideAllViews();
+            document.getElementById('view-menu').classList.remove('hidden');
+            document.getElementById('game-stats').classList.add('hidden');
+        }
+
+        function showMultiplayerSetup() {
+            hideAllViews();
+            document.getElementById('view-mp-setup').classList.remove('hidden');
+        }
+
+        function hideAllViews() {
+            document.getElementById('view-menu').classList.add('hidden');
+            document.getElementById('view-mp-setup').classList.add('hidden');
+            document.getElementById('view-game').classList.add('hidden');
+            document.getElementById('view-gameover').classList.add('hidden');
+        }
+
+        function formatYear(value) {
+            return value < 0 ? Math.abs(value) + ' v. Chr.' : value;
+        }
+
+        function updateLivesDisplay() {
+            const livesEl = document.getElementById('lives-display');
+            if (!livesEl) return;
+            livesEl.innerText = '❤️'.repeat(Math.max(0, gameState.lives)) + '🖤'.repeat(Math.max(0, 3 - gameState.lives));
+        }
+
+        function startGame(mode) {
+            gameState.mode = mode;
+            gameState.score = 0;
+            gameState.lives = 3;
+            gameState.currentPlayerIndex = 0;
+            gameState.selectedEvent = null;
+
+            if (mode === 'multi') {
+                const namesInput = document.getElementById('mp-players').value;
+                gameState.players = namesInput.split(',').map(n => n.trim()).filter(n => n.length > 0);
+                if (gameState.players.length === 0) gameState.players = ["Spieler 1", "Spieler 2"];
+                document.getElementById('turn-indicator').classList.remove('hidden');
+                updateTurnIndicator();
+            } else {
+                document.getElementById('turn-indicator').classList.add('hidden');
+            }
+
+            hideAllViews();
+            document.getElementById('view-game').classList.remove('hidden');
+            document.getElementById('game-stats').classList.remove('hidden');
+            updateLivesDisplay();
+            document.getElementById('score-display').innerText = '0';
+
+            gameState.anchorEvent = { ...database.find(e => e.title === 'Entdeckung Amerikas') };
+
+            const older = database
+                .filter(e => e.title !== gameState.anchorEvent.title && e.year < gameState.anchorEvent.year)
+                .sort((a, b) => a.year - b.year)
+                .slice(0, 5);
+            const younger = database
+                .filter(e => e.title !== gameState.anchorEvent.title && e.year > gameState.anchorEvent.year)
+                .sort((a, b) => a.year - b.year)
+                .slice(0, 5);
+
+            gameState.remainingEvents = [...older, ...younger];
+            gameState.placedEvents = [];
+            document.getElementById('mystery-title').innerText = 'Entdeckung Amerikas';
+            document.getElementById('mystery-desc').innerText = 'Das Referenzereignis ist schon auf dem Zeitstrahl. Du musst die 10 übrigen Ereignisse in die richtige Reihenfolge einordnen.';
+
+            renderTimeline();
+            renderEventTray();
+        }
+
+        function startMultiplayerGame() {
+            startGame('multi');
+        }
+
+        function updateTurnIndicator() {
+            if (gameState.mode === 'multi') {
+                document.getElementById('current-player-name').innerText = gameState.players[gameState.currentPlayerIndex];
+            }
+        }
+
+        function renderTimeline(preserveScroll = false) {
+            const container = document.getElementById('timeline-container');
+            const scrollArea = document.getElementById('timeline-scroll');
+            const previousScrollLeft = scrollArea.scrollLeft;
+            container.innerHTML = '';
+            container.className = 'relative flex items-center justify-between min-h-[160px] w-full bg-slate-900/40 rounded-3xl border border-slate-800/80 backdrop-blur p-4';
+
+            const timelineEvents = [...gameState.placedEvents, gameState.anchorEvent].sort((a, b) => a.year - b.year);
+            const olderEvents = timelineEvents.filter(event => event.year < gameState.anchorEvent.year);
+            const youngerEvents = timelineEvents.filter(event => event.year > gameState.anchorEvent.year);
+            const widestSide = Math.max(olderEvents.length, youngerEvents.length);
+            container.style.minWidth = `max(100%, ${240 + widestSide * 208}px)`;
+
+            const line = document.createElement('div');
+            line.className = 'absolute left-10 right-10 top-1/2 h-1 bg-gradient-to-r from-indigo-500 via-violet-500 to-fuchsia-500 rounded-full';
+            line.style.transform = 'translateY(-50%)';
+            container.appendChild(line);
+
+            const leftGroup = document.createElement('div');
+            leftGroup.className = 'relative z-10 flex flex-1 items-center justify-end gap-1 min-w-0';
+            olderEvents.forEach((event, index) => {
+                leftGroup.appendChild(createTimelineSlot(index));
+                leftGroup.appendChild(createTimelineCard(event));
+            });
+            leftGroup.appendChild(createTimelineSlot(olderEvents.length));
+
+            const anchorCard = createTimelineCard(gameState.anchorEvent, true);
+            anchorCard.classList.add('scale-105');
+
+            const rightGroup = document.createElement('div');
+            rightGroup.className = 'relative z-10 flex flex-1 items-center justify-start gap-1 min-w-0';
+            youngerEvents.forEach((event, index) => {
+                rightGroup.appendChild(createTimelineSlot(olderEvents.length + index + 1));
+                rightGroup.appendChild(createTimelineCard(event));
+            });
+            rightGroup.appendChild(createTimelineSlot(timelineEvents.length));
+
+            container.appendChild(leftGroup);
+            container.appendChild(anchorCard);
+            container.appendChild(rightGroup);
+            if (preserveScroll) {
+                scrollArea.scrollLeft = previousScrollLeft;
+            } else {
+                scrollArea.scrollLeft = Math.max(0, anchorCard.offsetLeft + anchorCard.offsetWidth / 2 - scrollArea.clientWidth / 2);
+            }
+        }
+
+        function createTimelineSlot(index) {
+            const slot = document.createElement('button');
+            slot.type = 'button';
+            slot.setAttribute('aria-label', `Ereignis an Stelle ${index + 1} einordnen`);
+            slot.className = `relative z-10 flex h-9 w-6 shrink-0 items-center justify-center rounded-full border text-xl transition ${gameState.selectedEvent ? 'border-indigo-400 bg-indigo-500/20 text-indigo-200 hover:bg-indigo-500/40' : 'border-slate-700 bg-slate-900 text-slate-500'}`;
+            slot.innerHTML = '+';
+            slot.onclick = () => placeSelectedEventAt(index);
+            return slot;
+        }
+
+        function createTimelineCard(event, isAnchor = false) {
+            const card = document.createElement('div');
+            card.className = isAnchor
+                ? 'bg-gradient-to-br from-indigo-600 to-violet-500 border border-indigo-300 p-4 rounded-2xl w-40 text-center shadow-lg shadow-indigo-500/20 shrink-0'
+                : 'bg-slate-800 border border-slate-700 p-2 rounded-xl flex-1 min-w-[4.5rem] text-center shadow-md';
+
+            card.innerHTML = `
+                ${isAnchor ? `<div class="text-xs font-bold uppercase tracking-[0.2em] text-indigo-100 mb-1">${formatYear(event.year)}</div>` : ''}
+                <div class="text-xs font-bold ${isAnchor ? 'text-white' : 'text-slate-100'} leading-snug break-words">${event.title}</div>
+            `;
+
+            return card;
+        }
+
+        function renderEventTray() {
+            const tray = document.getElementById('event-box');
+            tray.innerHTML = '';
+
+            const sorted = [...gameState.remainingEvents].sort((a, b) => a.year - b.year);
+            sorted.forEach(event => {
+                const btn = document.createElement('button');
+                btn.className = `w-full md:w-[calc(50%-0.375rem)] px-3 py-3 rounded-xl border text-left transition ${gameState.selectedEvent && gameState.selectedEvent.title === event.title ? 'border-indigo-500 bg-indigo-600/20 text-white' : 'border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-100'}`;
+                btn.innerHTML = `<div class="text-[10px] font-bold tracking-[0.2em] text-slate-400 uppercase">Ereignis</div><div class="mt-2 text-sm font-semibold">${event.title}</div>`;
+                btn.onclick = () => selectEvent(event);
+                tray.appendChild(btn);
+            });
+
+            const status = document.getElementById('turn-status');
+            status.textContent = gameState.selectedEvent
+                ? `Wo gehört „${gameState.selectedEvent.title}“ hin?`
+                : 'Karte wählen und die passende Lücke anklicken';
+        }
+
+        function selectEvent(event) {
+            gameState.selectedEvent = event;
+            renderEventTray();
+            renderTimeline(true);
+        }
+
+        function placeSelectedEventAt(index) {
+            if (!gameState.selectedEvent) {
+                alert('Wähle zuerst ein Ereignis aus der Box aus.');
+                return;
+            }
+
+            const event = gameState.selectedEvent;
+            const timelineEvents = [...gameState.placedEvents, gameState.anchorEvent].sort((a, b) => a.year - b.year);
+            const leftEvent = timelineEvents[index - 1];
+            const rightEvent = timelineEvents[index];
+            const fitsBetweenNeighbors = (!leftEvent || event.year > leftEvent.year) && (!rightEvent || event.year < rightEvent.year);
+
+            if (!fitsBetweenNeighbors) {
+                gameState.lives = Math.max(0, gameState.lives - 1);
+                updateLivesDisplay();
+                alert('Falsch! Das Ereignis passt nicht zwischen diese beiden Nachbarn.');
+                if (gameState.lives <= 0) {
+                    gameOver();
+                    return;
+                }
+                renderEventTray();
+                return;
+            }
+
+            gameState.placedEvents.push(event);
+            gameState.remainingEvents = gameState.remainingEvents.filter(e => e.title !== event.title);
+            gameState.score += 10;
+            gameState.selectedEvent = null;
+            document.getElementById('score-display').innerText = gameState.score;
+
+            renderTimeline();
+            renderEventTray();
+
+            if (gameState.remainingEvents.length === 0) {
+                setTimeout(() => {
+                    alert('Super! Du hast alle 10 Ereignisse richtig eingeordnet.');
+                    showMenu();
+                }, 200);
+            }
+        }
+
+        function gameOver() {
+            hideAllViews();
+            document.getElementById('view-gameover').classList.remove('hidden');
+            document.getElementById('final-score').innerText = gameState.score;
+        }
+    </script>
+</body>
+</html>
